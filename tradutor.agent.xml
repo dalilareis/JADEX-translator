@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- Agente tradutor -->
+
+<agent xmlns="http://jadex.sourceforge.net/jadex" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://jadex.sourceforge.net/jadex-bdi
+						http://jadex.sourceforge.net/jadex-bdi-2.4.xsd"
+	name="tradutor" package="Translator">
+	
+<imports>
+<import>jadex.commons.*</import>
+<import>jadex.bridge.fipa.*</import>
+<import>jadex.bdi.runtime.*</import>
+</imports>
+
+<beliefs>
+	<!-- Create and Set up the "Dictionary" -->
+	
+	<beliefset name="epwords" class="Tuple">
+		<fact> new Tuple("milk", "leite")</fact>
+		<fact> new Tuple("cow", "vaca")</fact>
+		<fact> new Tuple("cat", "gato")</fact>
+		<fact> new Tuple("dog", "cão")</fact>	
+	</beliefset>
+	
+<!-- System time (to be compared to alarm time) -->
+	
+	<belief name="time" class="long" updaterate="1000">
+		<fact>System.currentTimeMillis()</fact>
+	</belief>
+	
+<!-- Set up an alarm for the Notify Plan -->	
+			
+	<belief name="alarm" class="long" updaterate="10000">
+		<fact>System.currentTimeMillis()+10000</fact>
+	</belief>
+	
+<!-- Set up a counter of Requests received -->
+	
+	<belief name="counter" class="int">
+		<fact>0</fact>
+	</belief>
+</beliefs>
+
+<plans>
+<!-- Plano para qd há 1 evento de Request_Translation -->
+	
+	<plan name="translate">
+		<parameter name="eword" class="String">	<!-- Elimina-se esta parte?? -->
+			<messageeventmapping ref="request_translation.content"/>
+		</parameter>
+		<body class="tradutor"></body>
+		<trigger>
+			<messageevent ref="request_translation"/>
+		</trigger>
+	</plan>
+		
+<!-- Plano para qd há 1 evento de Addword -->
+
+	<plan name="addword">
+		<body class="addWordDict"></body>
+		<trigger><messageevent ref="request_addword"/></trigger>
+	</plan>
+
+<!-- Plano para Notificar com o número total de Requests recebidos -->
+
+	<plan name="countingRequests">
+		<body class="notify"></body>
+		<trigger>
+			<condition>$beliefbase.time &gt; $beliefbase.alarm </condition> <!-- Podia ser <factchanged>$beliefbase.alarm</factchanged>? -->
+		</trigger>		
+	</plan>
+</plans>
+
+<events>
+<!-- Receive Message for Translation Request -->
+
+	<messageevent name="request_translation" direction="receive" type="fipa">
+		 <parameter name="performative" class="String" direction="fixed">
+			<value>SFipa.REQUEST</value>
+		</parameter>
+		<parameter name="content-start" class="String" direction="fixed">
+			<value>"translate"</value>
+		</parameter>
+	</messageevent>
+	
+<!-- Receive Message to Add words to Dict -->
+
+	<messageevent name="request_addword" direction="receive" type="fipa">
+		 <parameter name="performative" class="String" direction="fixed">
+			<value>SFipa.REQUEST</value>
+		</parameter>
+		<parameter name="content-start" class="String" direction="fixed">
+			<value>"add"</value>
+		</parameter>
+	</messageevent>
+
+<!-- Reply to the Translation(or add) Request (word exists in dict) -->
+	
+	<messageevent name="inform" direction="send" type="fipa">
+		 <parameter name="performative" class="String" direction="fixed">
+			<value>SFipa.INFORM</value>
+		</parameter>
+	</messageevent>
+	
+<!-- Reply negatively to the Translation(or add) Request (word does NOT exist in dict) -->
+	
+	<messageevent name="failure" direction="send" type="fipa">
+		 <parameter name="performative" class="String" direction="fixed">
+			<value>SFipa.FAILURE</value>
+		</parameter>
+	</messageevent>
+</events>
+
+<!-- Não devia existir um Plano para cada Evento? Mesmo para as Respostas? -->
+
+<expressions>
+<!-- Estabelecer o q faz a expressão query_epword qd é usado pelos Agentes/Planos -->
+
+		<expression name="query_epword" class="String">
+		select one $wordpair.get(1) from Tuple $wordpair in $beliefbase.epwords
+		where $wordpair.get(0).equals($eword)
+		</expression>
+</expressions>
+</agent>
